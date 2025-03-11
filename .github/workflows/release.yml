@@ -21,4 +21,6 @@ jobs:
       - name: Build the project
         run: uv build
       - name: Publish the project
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
         run: uv publish # ensure that UV_PUBLISH_TOKEN env variable is set
