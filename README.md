@@ -11,7 +11,33 @@ referenced below.
 
     Bergmann, Paul, Kilian Batzner, Michael Fauser, David Sattlegger, and Carsten Steger. “The MVTec Anomaly Detection Dataset: A Comprehensive Real-World Dataset for Unsupervised Anomaly Detection.” International Journal of Computer Vision 129, no. 4 (April 1, 2021): 1038–59. https://doi.org/10.1007/s11263-020-01400-4.
 
-The arguments to instantiate the metric are as follows.
+### Usage Example
+
+```python
+from pyaupro import PerRegionOverlap, auc_compute, generate_random_data
+
+# generate random data for testing
+preds, target = generate_random_data(batch_size=1, seed=42)
+
+# initialize an approximate PRO-metric with 100 thresholds
+pro_curve = PerRegionOverlap(thresholds=100)
+
+# update the metric with the random preds and target
+pro_curve.update(preds, target)
+
+# compute the fpr and pro values for the curve
+fpr, pro = pro_curve.compute()
+
+# calculate the area under the curve
+score = auc_compute(fpr, pro, reorder=True)
+
+# plot the curve
+pro_curve.plot(score=True)
+```
+
+### Usage Details
+
+The arguments to instantiate ``pyaupro.PerRegionOverlap`` are as follows.
 
 ```
 thresholds:
@@ -30,14 +56,14 @@ validate_args: bool indicating if input arguments and tensors should be validate
 kwargs: Additional keyword arguments, see :ref:`Metric kwargs` for more info.
 ```
 
-An ``update`` of the metric expects a three dimensional ``preds`` tensor where the first dimension is the batch dimension (floats between zero and one, otherwise the values are considered logits) equally shaped ``target`` tensor containing ground truth labels, and therefore only contain {0,1} values.
+An ``update`` of the metric expects a three-dimensional ``preds`` tensor where the first dimension is the batch dimension (floats between zero and one; otherwise, the values are considered logits) and an equally shaped ``target`` tensor containing binary ground truth labels ({0,1} values).
 
-If ``thresholds`` is ``None``, the metric computes an exact Per-Region Overlap (PRO) curve over all possible values. In this case, each update step appends the given tensors and the calculation happens at ``compute``. We use the official implementation provided in ``MVTecAD`` as a reference.
+If ``thresholds`` is ``None``, the metric computes an exact Per-Region Overlap (PRO) curve over all possible values. In this case, each update step appends the given tensors, and the calculation happens in ``compute``. We use the official implementation provided in ``MVTecAD`` for exact calculation.
 
 If thresholds are given, the computation is approximate and happens at each update step. In the approximate case, ``compute`` returns a mean of the batched computations during update.
 
-We further provide an ``auc_compute`` utility for area under the curve computation, which is also used
-in ``PerRegionOverlap`` if ``score=True``. The arguments for ``auc_compute`` are as follows.
+We provide an ``auc_compute`` utility for area under the curve computation, which is also used
+in ``PerRegionOverlap.plot`` if ``score=True``. The arguments for ``pyaupro.auc_compute`` are as follows.
 
 ```
 x:
