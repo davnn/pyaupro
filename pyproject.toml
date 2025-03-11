@@ -1,0 +1,52 @@
+[project]
+name = "pyaupro"
+version = "0.1.0"
+description = "Efficient per-region overlap (PRO) calculation implemented using torchmetrics."
+authors = [{ name = "David Muhr", email = "muhrdavid+github@gmail.com" }]
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=2.2.3",
+    "scipy>=1.15.2",
+    "torchmetrics>=1.6.2",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Utilities",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+]
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.10.1",
+    "notebook>=7.3.2",
+    "pytest>=8.3.5",
+]
+
+[project.urls]
+Repository = "https://github.com/davnn/pyaupro"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = ["src/pyaupro/**/*.py"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pyaupro"]
