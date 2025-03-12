@@ -242,13 +242,14 @@ def _per_region_overlap_update(
     for t in range(len_t):
         # compute false positive rate
         preds_t = flat_preds >= thresholds[t]
-        false_positive_rate[t] = negatives[preds_t].sum() / total_negatives
+        false_positive_rate[t] = negatives[preds_t].sum()
 
         # compute per-region overlap
         overlap_area = torch.bincount(
             flat_components,
             weights=preds_t[pos_comp_mask]
         )[1:]
-        per_region_overlap[t] = torch.mean(overlap_area / total_area)
+        overlap_area.div_(total_area) # faster than overlap_area / total_area
+        per_region_overlap[t] = torch.mean(overlap_area)
 
-    return false_positive_rate, per_region_overlap
+    return false_positive_rate / total_negatives, per_region_overlap
