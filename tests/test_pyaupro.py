@@ -3,8 +3,13 @@ import torch
 from pyaupro import PerRegionOverlap, auc_compute, generate_random_data
 from numpy.testing import assert_approx_equal
 
+# generate samples of unequal batch size to test if the updates are correctly
+# weighted and vary ``noise_level`` to generate batches of differing AUC.
+# additionally vary the number of objects for overlap calculation.
 noise_levels = [0.2, 0.4, 0.6]
-d0, d1, d2 = [generate_random_data(seed=i, noise_level=n) for i, n in enumerate(noise_levels)]
+d0, d1, d2 = [generate_random_data(
+    seed=i, batch_size=i + 1, num_objects=i + 2, noise_level=n
+) for i, n in enumerate(noise_levels)]
 test_data = [[d0], [d1, d2], [d0, d1, d2]]
 
 @pytest.mark.parametrize("data", test_data)

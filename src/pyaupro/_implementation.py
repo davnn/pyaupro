@@ -132,10 +132,13 @@ class PerRegionOverlap(Metric):
             self.preds.append(preds)
             self.target.append(target)
         else:
+            # compute the fpr and pro for all preds and target given thresholds
             fpr, pro = _per_region_overlap_update(preds, target, self.thresholds)
-            self.fpr += fpr
-            self.pro += pro
-            self.num_updates += 1
+            # weight the fpr and pro contribution given the number of samples
+            num_samples = len(preds)
+            self.fpr += fpr * num_samples
+            self.pro += pro * num_samples
+            self.num_updates += num_samples
 
     def compute(self) -> tuple[Tensor, Tensor]:
         """Compute metric."""
