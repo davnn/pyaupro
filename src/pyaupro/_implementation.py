@@ -215,32 +215,40 @@ def _per_region_overlap_update(
     This implementation loops over thresholds for memory efficiency, but vectorization should be possible as well.
     """
     len_t = len(thresholds)
-    negatives = target == 0
-    total_negatives = negatives.sum()
-    false_positive_rate = thresholds.new_empty(len_t, dtype=torch.float64)
-    per_region_overlap = thresholds.new_empty(len_t, dtype=torch.float64)
+
+    # define the 8-neighbor connectivity structure for 3d-tensors
     batch_structure = np.zeros((3,3,3), dtype=int)
     batch_structure[1,:,:] = 1
 
     # pre-compute total component areas for region overlap
     components, _ = label(target.numpy(force=True), structure=batch_structure)
     flat_components = torch.from_numpy(components.ravel())
+
     # only keep true components (non-zero values)
     pos_comp_mask = flat_components > 0
     flat_components = flat_components[pos_comp_mask]
     total_area = torch.bincount(flat_components)[1:]
 
+    # pre-compute the negative mask and flatten preds for perf
+    negatives = (target == 0).ravel()
+    total_negatives = negatives.sum()
+    flat_preds = preds.ravel()
+
+    # initialize the result tensors
+    false_positive_rate = thresholds.new_empty(len_t, dtype=torch.float64)
+    per_region_overlap = thresholds.new_empty(len_t, dtype=torch.float64)
+
     # Iterate one threshold at a time to conserve memory
-    for i in range(len_t):
+    for t in range(len_t):
         # compute false positive rate
-        preds_t = preds >= thresholds[i]
-        false_positive_rate[i] = negatives[preds_t].sum() / total_negatives
+        preds_t = flat_preds >= thresholds[t]
+        false_positive_rate[t] = negatives[preds_t].sum() / total_negatives
 
         # compute per-region overlap
         overlap_area = torch.bincount(
             flat_components,
-            weights=preds_t.ravel()[pos_comp_mask]
+            weights=preds_t[pos_comp_mask]
         )[1:]
-        per_region_overlap[i] = torch.mean(overlap_area / total_area)
+        per_region_overlap[t] = torch.mean(overlap_area / total_area)
 
     return false_positive_rate, per_region_overlap
