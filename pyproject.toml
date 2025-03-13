@@ -1,6 +1,6 @@
 [project]
 name = "pyaupro"
-version = "0.1.4"
+version = "0.1.5"
 description = "Efficient per-region overlap (PRO) calculation implemented using torchmetrics."
 authors = [{ name = "David Muhr", email = "muhrdavid+github@gmail.com" }]
 readme = "README.md"
@@ -37,6 +37,7 @@ dev = [
     "matplotlib>=3.10.1",
     "notebook>=7.3.2",
     "pytest>=8.3.5",
+    "ruff>=0.10.0",
 ]
 
 [project.urls]

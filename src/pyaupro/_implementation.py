@@ -1,4 +1,5 @@
 from typing import Any, List, Optional, Union
+from warnings import warn
 
 import torch
 import numpy as np
@@ -73,6 +74,8 @@ class PerRegionOverlap(Metric):
             Specifies a target value that is ignored and does not contribute to the metric calculation
         validate_args: bool indicating if input arguments and tensors should be validated for correctness.
             Set to ``False`` for faster computations.
+        use_reference_implementation:
+            Fall back to the official MVTecAD implementation for the exact computation.
         kwargs: Additional keyword arguments, see :ref:`Metric kwargs` for more info.
 
     Example:
@@ -106,6 +109,7 @@ class PerRegionOverlap(Metric):
         thresholds: Optional[Union[int, list[float], Tensor]] = None,
         ignore_index: Optional[int] = None,
         validate_args: bool = True,
+        use_reference_implementation: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -114,6 +118,7 @@ class PerRegionOverlap(Metric):
 
         self.ignore_index = ignore_index
         self.validate_args = validate_args
+        self.use_reference_implementation = use_reference_implementation
 
         thresholds = _adjust_threshold_arg(thresholds)
         if thresholds is None:
@@ -131,9 +136,12 @@ class PerRegionOverlap(Metric):
         if self.thresholds is None:
             self.preds.append(preds)
             self.target.append(target)
-        else:
-            # compute the fpr and pro for all preds and target given thresholds
-            fpr, pro = _per_region_overlap_update(preds, target, self.thresholds)
+            return None
+
+        # compute the fpr and pro for all preds and target given thresholds
+        maybe_result = _per_region_overlap_update(preds, target, self.thresholds)
+        if maybe_result is not None:
+            fpr, pro = maybe_result
             # weight the fpr and pro contribution given the number of samples
             num_samples = len(preds)
             self.fpr += fpr * num_samples
@@ -146,8 +154,13 @@ class PerRegionOverlap(Metric):
             # calculate the exact fpr and pro using all distinct thresholds using the logic
             # from torchmetrics ``_binary_precision_recall_curve_compute`` and ``_binary_clf_curve``
             preds, target = dim_zero_cat(self.preds), dim_zero_cat(self.target)
-            fpr, pro = compute_pro(preds.numpy(force=True), target.numpy(force=True))
-            return torch.from_numpy(fpr), torch.from_numpy(pro)
+
+            if self.use_reference_implementation:
+                assert preds.ndim == 3, "The reference implementation is only defined for 3d-tensors."
+                fpr, pro = compute_pro(preds.numpy(force=True), target.numpy(force=True))
+                return torch.from_numpy(fpr), torch.from_numpy(pro)
+
+            return _per_region_overlap_compute(preds, target)
 
         return self.fpr / self.num_updates, self.pro / self.num_updates
 
@@ -209,25 +222,23 @@ def _per_region_overlap_update(
     preds: Tensor,
     target: Tensor,
     thresholds:  Tensor,
-) -> tuple[Tensor, Tensor]:
-    """Return the false positive rate and per-region overlap.
-
-    This implementation loops over thresholds for memory efficiency, but vectorization should be possible as well.
-    """
-    len_t = len(thresholds)
-
-    # define the 8-neighbor connectivity structure for 3d-tensors
-    batch_structure = np.zeros((3,3,3), dtype=int)
-    batch_structure[1,:,:] = 1
-
+) -> tuple[Tensor, Tensor] | None:
+    """Return the false positive rate and per-region overlap for the given thresholds."""
     # pre-compute total component areas for region overlap
-    components, _ = label(target.numpy(force=True), structure=batch_structure)
+    structure = _get_structure(target.ndim)
+    components, n_components = label(target.numpy(force=True), structure=structure)
+
+    # ensure that there are components available for overlap calculation
+    if n_components == 0:
+        return warn("No regions found in target for update, ignoring update.")
+
+    # convert back to torch and flatten components to vector
     flat_components = torch.from_numpy(components.ravel())
 
     # only keep true components (non-zero values)
     pos_comp_mask = flat_components > 0
     flat_components = flat_components[pos_comp_mask]
-    total_area = torch.bincount(flat_components)[1:]
+    region_total_area = torch.bincount(flat_components)[1:]
 
     # pre-compute the negative mask and flatten preds for perf
     negatives = (target == 0).ravel()
@@ -235,6 +246,7 @@ def _per_region_overlap_update(
     flat_preds = preds.ravel()
 
     # initialize the result tensors
+    len_t = len(thresholds)
     false_positive_rate = thresholds.new_empty(len_t, dtype=torch.float64)
     per_region_overlap = thresholds.new_empty(len_t, dtype=torch.float64)
 
@@ -245,11 +257,63 @@ def _per_region_overlap_update(
         false_positive_rate[t] = negatives[preds_t].sum()
 
         # compute per-region overlap
-        overlap_area = torch.bincount(
+        region_overlap_area = torch.bincount(
             flat_components,
-            weights=preds_t[pos_comp_mask]
+            weights=preds_t[pos_comp_mask],
+            minlength=n_components
         )[1:]
-        overlap_area.div_(total_area) # faster than overlap_area / total_area
-        per_region_overlap[t] = torch.mean(overlap_area)
+        # faster than region_overlap_area / region_total_area
+        region_overlap_area.div_(region_total_area)
+        per_region_overlap[t] = torch.mean(region_overlap_area)
 
     return false_positive_rate / total_negatives, per_region_overlap
+
+
+def _per_region_overlap_compute(
+        preds: Tensor,
+        target: Tensor,
+) -> tuple[Tensor, Tensor]:
+    """Compute the exact per-region overlap over all possible thresholds."""
+    # Structuring element for computing connected components.
+    structure = _get_structure(target.ndim)
+
+    # pre-compute total component areas for region overlap
+    components, n_components = label(target.numpy(force=True), structure=structure)
+    assert n_components > 0, "Cannot compute PRO metric without regions, found 0 regions in target."
+    flat_components = torch.from_numpy(components.ravel())
+
+    # contribution of per-region overlap to the curve
+    # only use real components for bincount (nonzero values)
+    bin_total_area = torch.bincount(flat_components[flat_components > 0])
+
+    # divide the relative contribution by area and number of components
+    bin_contribution = 1.0 / n_components / bin_total_area.to(torch.float64)
+    bin_contribution[0] = 0.0 # division by zero, must replace inf
+
+    # component idx to determine their relative contribution
+    pro_contribution = bin_contribution[flat_components]
+
+    # contribution of false positive rate to the curve
+    fpr_contribution = (target == 0).ravel().to(torch.float64)
+    fpr_contribution.div_(fpr_contribution.sum())
+
+    # sort the contributions according to predictions
+    sort_idx = torch.argsort(preds.ravel(), descending=True)
+    false_positive_rate = torch.take(fpr_contribution, sort_idx)
+    torch.cumsum(false_positive_rate, dim=0, out=false_positive_rate)
+    per_region_overlap = torch.take(pro_contribution, sort_idx)
+    torch.cumsum(per_region_overlap, dim=0, out=per_region_overlap)
+
+    # prevent possible cumsum rounding errors
+    torch.clamp_(false_positive_rate, max=1.0)
+    torch.clamp_(per_region_overlap, max=1.0)
+
+    return false_positive_rate, per_region_overlap
+
+
+def _get_structure(ndim: int) -> np.ndarray:
+    """Define a batched 2-neighborhood (2d) and 8-neighborhood (3d) structuring element."""
+    assert 1 < ndim < 4, f"Cannot compute PRO for tensors with < 2 or > 3 dims, found {ndim}."
+    structure = np.zeros((3,) * ndim, dtype=bool)
+    structure[1] = True
+    return structure
