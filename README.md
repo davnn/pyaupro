@@ -87,8 +87,8 @@ return_curve:
 ### How to develop
 
 - Use ``uv sync`` to install dependencies from the lock file.
-- Use ``uv lock`` to update the lock file given the pinned dependencies.
-- Use ``uv lock --upgrade`` to upgrade the lock file ignoring pinned dependencies.
+- Use ``uv lock`` to update the lock file if necessary given the pinned dependencies.
+- Use ``uv lock --upgrade`` to upgrade the lock file the latest valid dependencies.
 - Use ``uv pip install --editable .`` to install the local package.
 - Use ``uv run pytest tests`` to test the local package.
 

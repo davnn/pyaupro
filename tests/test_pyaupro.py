@@ -1,6 +1,7 @@
 import pytest
 import torch
-from pyaupro import PerRegionOverlap, auc_compute, generate_random_data
+from packaging.version import Version
+from pyaupro import PerRegionOverlap, auc_compute, generate_random_data, get_version
 from numpy.testing import assert_approx_equal
 
 # generate samples of unequal batch size to test if the updates are correctly
@@ -8,7 +9,7 @@ from numpy.testing import assert_approx_equal
 # additionally vary the number of objects for overlap calculation.
 noise_levels = [0.2, 0.4, 0.6]
 d0, d1, d2 = [generate_random_data(
-    seed=i, batch_size=i + 1, num_objects=i + 2, noise_level=n
+    seed=i + 1, batch_size=i + 1, num_objects=i + 2, noise_level=n
 ) for i, n in enumerate(noise_levels)]
 test_data = [[d0], [d1, d2], [d0, d1, d2]]
 
@@ -62,9 +63,10 @@ def test_approx_auc_similar_to_exact_auc(data, thresholds):
     # with a large enough number of thresholds, the values should be close
     assert_approx_equal(auc_approx, auc_reference, significant=2)
 
-    # TODO: Evaluate why exact computation results do not match exact
-    # results of the reference implementation
-    # assert_approx_equal(auc_exact, auc_reference, significant=2)
+    # both exact computations should lead to similar results interestingly,
+    # there are significant differences on some chosen random seeds,
+    # probably due to rounding errors.
+    assert_approx_equal(auc_exact, auc_reference, significant=2)
 
 def test_invalid_inputs():
     with pytest.raises(ValueError):
@@ -75,3 +77,7 @@ def test_invalid_inputs():
 
     with pytest.raises(ValueError):
         PerRegionOverlap(thresholds=[-0.1, 1.2])
+
+def test_version_readable():
+    # Raises if get_version returns an invalid version
+    Version(get_version())
