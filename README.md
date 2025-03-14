@@ -53,9 +53,12 @@ ignore_index:
     Specifies a target value that is ignored and does not contribute to the metric calculation
 validate_args: bool indicating if input arguments and tensors should be validated for correctness.
     Set to ``False`` for faster computations.
-use_reference_implementation:
+changepoints_only:
+    Modify the exact curve to retain the relevant points only.
+reference_implementation:
     Fall back to the official MVTecAD implementation for the exact computation.
-kwargs: Additional keyword arguments, see :ref:`Metric kwargs` for more info.
+kwargs:
+    Additional keyword arguments, see :ref:`Metric kwargs` for more info.
 ```
 
 An ``update`` of the metric expects a three-dimensional ``preds`` tensor where the first dimension is the batch dimension (floats between zero and one; otherwise, the values are considered logits) and an equally shaped ``target`` tensor containing binary ground truth labels ({0,1} values).

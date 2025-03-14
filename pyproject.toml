@@ -1,6 +1,6 @@
 [project]
 name = "pyaupro"
-version = "0.1.5"
+version = "0.1.6"
 description = "Efficient per-region overlap (PRO) calculation implemented using torchmetrics."
 authors = [{ name = "David Muhr", email = "muhrdavid+github@gmail.com" }]
 readme = "README.md"
@@ -52,3 +52,11 @@ include = ["src/pyaupro/**/*.py"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pyaupro"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "W", "I", "F", "NPY", "PERF", "UP", "FURB", "RUF"]
+fixable = ["ALL"]
+ignore = ["F401"]
