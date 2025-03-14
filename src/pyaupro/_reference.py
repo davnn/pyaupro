@@ -1,10 +1,10 @@
-"""
-Code is taken from the official reference of the MVTec evaluation code 
-found at https://www.mvtec.com/company/research/datasets/mvtec-ad
+"""Code is taken from the official reference of the MVTec evaluation code
+found at https://www.mvtec.com/company/research/datasets/mvtec-ad.
 """
 
 import numpy as np
 from scipy.ndimage import label
+
 
 def compute_pro(anomaly_maps, ground_truth_maps):
     """Compute the PRO curve for a set of anomaly maps with corresponding ground
@@ -22,8 +22,8 @@ def compute_pro(anomaly_maps, ground_truth_maps):
     Returns:
         fprs: numpy array of false positive rates.
         pros: numpy array of corresponding PRO values.
-    """
 
+    """
     # print("Compute PRO curve...")
 
     # Structuring element for computing connected components.
@@ -37,7 +37,7 @@ def compute_pro(anomaly_maps, ground_truth_maps):
              anomaly_maps[0].shape[1])
     fp_changes = np.zeros(shape, dtype=np.uint32)
     assert shape[0] * shape[1] * shape[2] < np.iinfo(fp_changes.dtype).max, \
-        'Potential overflow when using np.cumsum(), consider using np.uint64.'
+        "Potential overflow when using np.cumsum(), consider using np.uint64."
 
     pro_changes = np.zeros(shape, dtype=np.float64)
 

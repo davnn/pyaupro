@@ -1,11 +1,10 @@
-from typing import Any, List, Optional, Union
+from typing import Any
 from warnings import warn
 
-import torch
 import numpy as np
+import torch
 from scipy.ndimage import label
 from torch import Tensor
-
 from torchmetrics.functional.classification.precision_recall_curve import (
     _adjust_threshold_arg,
     _binary_precision_recall_curve_arg_validation,
@@ -74,9 +73,12 @@ class PerRegionOverlap(Metric):
             Specifies a target value that is ignored and does not contribute to the metric calculation
         validate_args: bool indicating if input arguments and tensors should be validated for correctness.
             Set to ``False`` for faster computations.
-        use_reference_implementation:
+        changepoints_only:
+            Modify the exact curve to retain the relevant points only.
+        reference_implementation:
             Fall back to the official MVTecAD implementation for the exact computation.
-        kwargs: Additional keyword arguments, see :ref:`Metric kwargs` for more info.
+        kwargs:
+            Additional keyword arguments, see :ref:`Metric kwargs` for more info.
 
     Example:
         >>> from pyaupro import PerRegionOverlap
@@ -92,24 +94,27 @@ class PerRegionOverlap(Metric):
         >>> (tensor([0.5000, 0.6667, 0.6667, 0.0000, 0.0000, 1.0000]),
         >>>  tensor([1., 1., 1., 0., 0., 0.]),
         >>>  tensor([0.0000, 0.2500, 0.5000, 0.7500, 1.0000]))
+
     """
 
     is_differentiable: bool = False
-    higher_is_better: Optional[bool] = None
+    higher_is_better: bool | None = None
     full_state_update: bool = False
 
-    preds: List[Tensor]
-    target: List[Tensor]
+    preds: list[Tensor]
+    target: list[Tensor]
     fpr: Tensor
     pro: Tensor
     num_updates: Tensor
 
     def __init__(
         self,
-        thresholds: Optional[Union[int, list[float], Tensor]] = None,
-        ignore_index: Optional[int] = None,
+        thresholds: int | list[float] | Tensor | None = None,
+        ignore_index: int | None = None,
+        *,
         validate_args: bool = True,
-        use_reference_implementation: bool = False,
+        changepoints_only: bool = True,
+        reference_implementation: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -118,7 +123,8 @@ class PerRegionOverlap(Metric):
 
         self.ignore_index = ignore_index
         self.validate_args = validate_args
-        self.use_reference_implementation = use_reference_implementation
+        self.reference_implementation = reference_implementation
+        self.changepoints_only = changepoints_only
 
         thresholds = _adjust_threshold_arg(thresholds)
         if thresholds is None:
@@ -136,12 +142,11 @@ class PerRegionOverlap(Metric):
         if self.thresholds is None:
             self.preds.append(preds)
             self.target.append(target)
-            return None
+            return
 
         # compute the fpr and pro for all preds and target given thresholds
-        maybe_result = _per_region_overlap_update(preds, target, self.thresholds)
-        if maybe_result is not None:
-            fpr, pro = maybe_result
+        if (res := _per_region_overlap_update(preds, target, self.thresholds)) is not None:
+            fpr, pro = res
             # weight the fpr and pro contribution given the number of samples
             num_samples = len(preds)
             self.fpr += fpr * num_samples
@@ -155,20 +160,20 @@ class PerRegionOverlap(Metric):
             # from torchmetrics ``_binary_precision_recall_curve_compute`` and ``_binary_clf_curve``
             preds, target = dim_zero_cat(self.preds), dim_zero_cat(self.target)
 
-            if self.use_reference_implementation:
+            if self.reference_implementation:
                 assert preds.ndim == 3, "The reference implementation is only defined for 3d-tensors."
                 fpr, pro = compute_pro(preds.numpy(force=True), target.numpy(force=True))
                 return torch.from_numpy(fpr), torch.from_numpy(pro)
 
-            return _per_region_overlap_compute(preds, target)
+            return _per_region_overlap_compute(preds, target, changepoints_only=self.changepoints_only)
 
         return self.fpr / self.num_updates, self.pro / self.num_updates
 
     def plot(
         self,
-        curve: Optional[tuple[Tensor, Tensor]] = None,
-        score: Optional[Union[Tensor, bool]] = None,
-        ax: Optional[_AX_TYPE] = None,
+        curve: tuple[Tensor, Tensor] | None = None,
+        score: Tensor | bool | None = None,
+        ax: _AX_TYPE | None = None,
         limit: float = 1.0,
     ) -> _PLOT_OUT_TYPE:
         """Plot a single or multiple values from the metric.
@@ -179,8 +184,10 @@ class PerRegionOverlap(Metric):
             score: Provide a area-under-the-curve score to be displayed on the plot. If `True` and no curve is provided,
                 will automatically compute the score. The score is computed by using the trapezoidal rule to compute the
                 area under the curve.
-            ax: An matplotlib axis object. If provided will add plot to that axis
-            limit: Integration limit chosen for the FPR such that only the values until the limit are computed / plotted.
+            ax:
+                An matplotlib axis object. If provided will add plot to that axis
+            limit:
+                Integration limit chosen for the FPR such that only the values until the limit are computed / plotted.
 
         Returns:
             Figure and Axes object
@@ -207,7 +214,7 @@ class PerRegionOverlap(Metric):
             pro,
             limit=limit,
             reorder=True,
-            return_curve=True
+            return_curve=True,
         )
         return plot_curve(
             (fpr, pro),
@@ -230,7 +237,7 @@ def _per_region_overlap_update(
 
     # ensure that there are components available for overlap calculation
     if n_components == 0:
-        return warn("No regions found in target for update, ignoring update.")
+        return warn("No regions found in target for update, ignoring update.", stacklevel=2)
 
     # convert back to torch and flatten components to vector
     flat_components = torch.from_numpy(components.ravel())
@@ -260,7 +267,7 @@ def _per_region_overlap_update(
         region_overlap_area = torch.bincount(
             flat_components,
             weights=preds_t[pos_comp_mask],
-            minlength=n_components
+            minlength=n_components,
         )[1:]
         # faster than region_overlap_area / region_total_area
         region_overlap_area.div_(region_total_area)
@@ -272,6 +279,8 @@ def _per_region_overlap_update(
 def _per_region_overlap_compute(
         preds: Tensor,
         target: Tensor,
+        *,
+        changepoints_only: bool,
 ) -> tuple[Tensor, Tensor]:
     """Compute the exact per-region overlap over all possible thresholds."""
     # Structuring element for computing connected components.
@@ -280,7 +289,9 @@ def _per_region_overlap_compute(
     # pre-compute total component areas for region overlap
     components, n_components = label(target.numpy(force=True), structure=structure)
     assert n_components > 0, "Cannot compute PRO metric without regions, found 0 regions in target."
-    flat_components = torch.from_numpy(components.ravel())
+
+    # convert back to torch, type cast necessary for later .take call
+    flat_components = torch.from_numpy(components.ravel()).type(torch.LongTensor)
 
     # contribution of per-region overlap to the curve
     # only use real components for bincount (nonzero values)
@@ -291,24 +302,55 @@ def _per_region_overlap_compute(
     bin_contribution[0] = 0.0 # division by zero, must replace inf
 
     # component idx to determine their relative contribution
-    pro_contribution = bin_contribution[flat_components]
+    pro_contribution = bin_contribution.take(flat_components)
 
     # contribution of false positive rate to the curve
     fpr_contribution = (target == 0).ravel().to(torch.float64)
     fpr_contribution.div_(fpr_contribution.sum())
 
     # sort the contributions according to predictions
-    sort_idx = torch.argsort(preds.ravel(), descending=True)
-    false_positive_rate = torch.take(fpr_contribution, sort_idx)
+    sort_idx = _fast_argsort(preds)
+    false_positive_rate = fpr_contribution.take(sort_idx)
     torch.cumsum(false_positive_rate, dim=0, out=false_positive_rate)
-    per_region_overlap = torch.take(pro_contribution, sort_idx)
+    per_region_overlap = pro_contribution.take(sort_idx)
     torch.cumsum(per_region_overlap, dim=0, out=per_region_overlap)
 
     # prevent possible cumsum rounding errors
     torch.clamp_(false_positive_rate, max=1.0)
     torch.clamp_(per_region_overlap, max=1.0)
 
+    if changepoints_only:
+        mask = _changepoint_mask(false_positive_rate, per_region_overlap)
+        return false_positive_rate[mask], per_region_overlap[mask]
+
     return false_positive_rate, per_region_overlap
+
+
+def _changepoint_mask(fpr: Tensor, pro: Tensor) -> tuple[Tensor, Tensor]:
+    """Filter the curve values to retain only the relevant points."""
+    const_pro = pro[:-1] == pro[1:]
+    const_fpr = fpr[:-1] == fpr[1:]
+    mask_pro = const_pro[:-1].logical_and(const_pro[1:])
+    mask_fpr = const_fpr[:-1].logical_and(const_fpr[1:])
+    mask_pro.logical_or_(mask_fpr).logical_not_()
+    return torch.cat([torch.BoolTensor([True]), mask_pro, torch.BoolTensor([True])])
+
+
+def _fast_argsort(values: Tensor) -> Tensor:
+    """Sort using numpy, it seems to be much faster than pytorch here."""
+    n_values = len(values)
+    np_idx = np.argsort(-values.ravel().numpy(force=True)).astype(_get_dtype(n_values))
+    return torch.from_numpy(np_idx).type(torch.LongTensor)
+
+
+def _get_dtype(n_elements: int) -> np.dtype:
+    """Determine appropriate integer dtype for indexing."""
+    for dtype in (np.uint16, np.uint32, np.uint64):
+        if n_elements <= np.iinfo(dtype).max:
+            return dtype
+
+    msg = f"Cannot represent {n_elements} using integer data type."
+    raise ValueError(msg)
 
 
 def _get_structure(ndim: int) -> np.ndarray:

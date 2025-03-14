@@ -1,8 +1,10 @@
-import torch
-from torch import Tensor
-import numpy as np
-from scipy.ndimage import gaussian_filter
 from typing import Any
+
+import numpy as np
+import torch
+from scipy.ndimage import gaussian_filter
+from torch import Tensor
+
 
 def auc_compute(
         x: Tensor,
@@ -12,13 +14,13 @@ def auc_compute(
         descending: bool = False,
         reorder: bool = False,
         check: bool = True,
-        return_curve: bool = False
+        return_curve: bool = False,
     ) -> Tensor | tuple[Tensor, Tensor, Tensor]:
     """Compute area under the curve using the trapezoidal rule.
 
     Args:
         x:
-            Ascending (or descending if ``descending=True``) sorted vector if, 
+            Ascending (or descending if ``descending=True``) sorted vector if,
             otherwise ``reorder`` must be used.
         y:
             Vector of the same size as ``x``.
@@ -73,7 +75,7 @@ def generate_random_data(
         num_objects: int = 2,
         noise_level: float =0.25,
         return_numpy: bool = False,
-        seed: Any = None # dynamically validated in ``default_rng
+        seed: Any = None, # dynamically validated in ``default_rng
     ) -> tuple[Tensor, Tensor] | tuple[np.ndarray, np.ndarray]:
     """Generates random test data: binary masks and probabilistic predictions."""
     rng = np.random.default_rng(seed)
@@ -95,5 +97,5 @@ def generate_random_data(
 
     if return_numpy:
         return preds, masks
-    
+
     return torch.from_numpy(preds), torch.from_numpy(masks)

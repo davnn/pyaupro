@@ -1,6 +1,6 @@
-from ._implementation import PerRegionOverlap as PerRegionOverlap
-from ._utilities import auc_compute as auc_compute
-from ._utilities import generate_random_data as generate_random_data
+from ._implementation import PerRegionOverlap
+from ._utilities import auc_compute, generate_random_data
+
 
 def get_version() -> str:
     """Return the package version or "unknown" if no version can be found."""
