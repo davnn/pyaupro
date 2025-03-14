@@ -295,24 +295,25 @@ def _per_region_overlap_compute(
 
     # contribution of per-region overlap to the curve
     # only use real components for bincount (nonzero values)
-    bin_total_area = torch.bincount(flat_components[flat_components > 0])
-
     # divide the relative contribution by area and number of components
-    bin_contribution = 1.0 / n_components / bin_total_area.to(torch.float64)
-    bin_contribution[0] = 0.0 # division by zero, must replace inf
-
-    # component idx to determine their relative contribution
-    pro_contribution = bin_contribution.take(flat_components)
-
-    # contribution of false positive rate to the curve
-    fpr_contribution = (target == 0).ravel().to(torch.float64)
-    fpr_contribution.div_(fpr_contribution.sum())
+    bin_contribution = torch.bincount(
+        flat_components[flat_components > 0],
+        minlength=n_components
+    ).to(torch.float64)
+    bin_contribution.reciprocal_().divide_(n_components)
+    bin_contribution[0] = 0.0
 
     # sort the contributions according to predictions
     sort_idx = _fast_argsort(preds)
-    false_positive_rate = fpr_contribution.take(sort_idx)
+    flat_components = flat_components.take(sort_idx)
+
+    # contribution of false positive rate to the curve
+    false_positive_rate = (flat_components == 0).to(torch.float64)
+    false_positive_rate.div_(false_positive_rate.sum())
     torch.cumsum(false_positive_rate, dim=0, out=false_positive_rate)
-    per_region_overlap = pro_contribution.take(sort_idx)
+
+    # contribution of the bin to the curve
+    per_region_overlap = bin_contribution.take(flat_components)
     torch.cumsum(per_region_overlap, dim=0, out=per_region_overlap)
 
     # prevent possible cumsum rounding errors
@@ -338,19 +339,8 @@ def _changepoint_mask(fpr: Tensor, pro: Tensor) -> tuple[Tensor, Tensor]:
 
 def _fast_argsort(values: Tensor) -> Tensor:
     """Sort using numpy, it seems to be much faster than pytorch here."""
-    n_values = len(values)
-    np_idx = np.argsort(-values.ravel().numpy(force=True)).astype(_get_dtype(n_values))
-    return torch.from_numpy(np_idx).type(torch.LongTensor)
-
-
-def _get_dtype(n_elements: int) -> np.dtype:
-    """Determine appropriate integer dtype for indexing."""
-    for dtype in (np.uint16, np.uint32, np.uint64):
-        if n_elements <= np.iinfo(dtype).max:
-            return dtype
-
-    msg = f"Cannot represent {n_elements} using integer data type."
-    raise ValueError(msg)
+    np_idx = np.argsort(-values.ravel().numpy(force=True), stable=False)
+    return torch.from_numpy(np_idx)
 
 
 def _get_structure(ndim: int) -> np.ndarray:
