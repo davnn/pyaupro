@@ -1,7 +1,3 @@
-"""Code is taken from the official reference of the MVTec evaluation code
-found at https://www.mvtec.com/company/research/datasets/mvtec-ad.
-"""
-
 import numpy as np
 from scipy.ndimage import label
 
@@ -9,6 +5,9 @@ from scipy.ndimage import label
 def compute_pro(anomaly_maps, ground_truth_maps):
     """Compute the PRO curve for a set of anomaly maps with corresponding ground
     truth maps.
+
+    Code is taken from the official reference of the MVTec evaluation code
+    found at https://www.mvtec.com/company/research/datasets/mvtec-ad.
 
     Args:
         anomaly_maps: List of anomaly maps (2D numpy arrays) that contain a
