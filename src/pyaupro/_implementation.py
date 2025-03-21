@@ -213,7 +213,8 @@ class PerRegionOverlap(Metric):
             fpr,
             pro,
             limit=limit,
-            reorder=True,
+            reorder=False,
+            descending=True,
             return_curve=True,
         )
         return plot_curve(
@@ -228,7 +229,7 @@ class PerRegionOverlap(Metric):
 def _per_region_overlap_update(
     preds: Tensor,
     target: Tensor,
-    thresholds:  Tensor,
+    thresholds: Tensor,
 ) -> tuple[Tensor, Tensor] | None:
     """Return the false positive rate and per-region overlap for the given thresholds."""
     # pre-compute total component areas for region overlap
@@ -277,10 +278,10 @@ def _per_region_overlap_update(
 
 
 def _per_region_overlap_compute(
-        preds: Tensor,
-        target: Tensor,
-        *,
-        changepoints_only: bool,
+    preds: Tensor,
+    target: Tensor,
+    *,
+    changepoints_only: bool,
 ) -> tuple[Tensor, Tensor]:
     """Compute the exact per-region overlap over all possible thresholds."""
     # Structuring element for computing connected components.
@@ -296,10 +297,7 @@ def _per_region_overlap_compute(
     # contribution of per-region overlap to the curve
     # only use real components for bincount (nonzero values)
     # divide the relative contribution by area and number of components
-    bin_contribution = torch.bincount(
-        flat_components[flat_components > 0],
-        minlength=n_components
-    ).to(torch.float64)
+    bin_contribution = torch.bincount(flat_components[flat_components > 0], minlength=n_components).to(torch.float64)
     bin_contribution.reciprocal_().divide_(n_components)
     bin_contribution[0] = 0.0
 
@@ -339,7 +337,7 @@ def _changepoint_mask(fpr: Tensor, pro: Tensor) -> tuple[Tensor, Tensor]:
 
 def _fast_argsort(values: Tensor) -> Tensor:
     """Sort using numpy, it seems to be much faster than pytorch here."""
-    np_idx = np.argsort(-values.ravel().numpy(force=True), stable=False)
+    np_idx = np.argsort(-values.ravel().numpy(force=True))
     return torch.from_numpy(np_idx)
 
 
