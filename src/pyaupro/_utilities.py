@@ -1,9 +1,35 @@
-from typing import Any
+from typing import Any, Literal, override
 
 import numpy as np
 import torch
 from scipy.ndimage import gaussian_filter
 from torch import Tensor
+
+
+@override
+def auc_compute(
+    x: Tensor,
+    y: Tensor,
+    limit: float = 1.0,
+    *,
+    descending: bool = False,
+    reorder: bool = False,
+    check: bool = True,
+    return_curve: Literal[True] = False,
+) -> tuple[Tensor, Tensor, Tensor]: ...
+
+
+@override
+def auc_compute(
+    x: Tensor,
+    y: Tensor,
+    limit: float = 1.0,
+    *,
+    descending: bool = False,
+    reorder: bool = False,
+    check: bool = True,
+    return_curve: Literal[False] = False,
+) -> Tensor: ...
 
 
 def auc_compute(
