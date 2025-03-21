@@ -7,15 +7,15 @@ from torch import Tensor
 
 
 def auc_compute(
-        x: Tensor,
-        y: Tensor,
-        limit: float = 1.0,
-        *,
-        descending: bool = False,
-        reorder: bool = False,
-        check: bool = True,
-        return_curve: bool = False,
-    ) -> Tensor | tuple[Tensor, Tensor, Tensor]:
+    x: Tensor,
+    y: Tensor,
+    limit: float = 1.0,
+    *,
+    descending: bool = False,
+    reorder: bool = False,
+    check: bool = True,
+    return_curve: bool = False,
+) -> Tensor | tuple[Tensor, Tensor, Tensor]:
     """Compute area under the curve using the trapezoidal rule.
 
     Args:
@@ -50,7 +50,7 @@ def auc_compute(
             y = y[x_idx]
 
         if check and not reorder:
-            dx = x[1:] - x[:-1]
+            dx = torch.diff(x)
             if descending:
                 assert (dx <= 0).all(), "The `x` tensor is not descending."
             else:
@@ -60,6 +60,7 @@ def auc_compute(
             # searchsorted expects a monotonically increasing tensor
             x_sorted = x.flip() if descending else x
             limit_idx = torch.searchsorted(x_sorted, limit)
+            limit_idx = len(x) - limit_idx if descending else limit_idx
             x, y = x[:limit_idx], y[:limit_idx]
 
         direction = -1.0 if descending else 1.0
@@ -69,14 +70,14 @@ def auc_compute(
 
 
 def generate_random_data(
-        batch_size: int = 8,
-        height: int = 32,
-        width: int = 32,
-        num_objects: int = 2,
-        noise_level: float =0.25,
-        return_numpy: bool = False,
-        seed: Any = None, # dynamically validated in ``default_rng
-    ) -> tuple[Tensor, Tensor] | tuple[np.ndarray, np.ndarray]:
+    batch_size: int = 8,
+    height: int = 32,
+    width: int = 32,
+    num_objects: int = 2,
+    noise_level: float = 0.25,
+    return_numpy: bool = False,
+    seed: Any = None,  # dynamically validated in ``default_rng
+) -> tuple[Tensor, Tensor] | tuple[np.ndarray, np.ndarray]:
     """Generates random test data: binary masks and probabilistic predictions."""
     rng = np.random.default_rng(seed)
     preds = np.zeros((batch_size, height, width), dtype=np.float32)
@@ -88,7 +89,7 @@ def generate_random_data(
 
         # Create binary mask with objects
         for y, x in object_centers:
-            masks[i, max(0, y-2):min(height, y+3), max(0, x-2):min(width, x+3)] = 1
+            masks[i, max(0, y - 2) : min(height, y + 3), max(0, x - 2) : min(width, x + 3)] = 1
 
         # Generate probabilistic prediction by blurring and adding noise
         preds[i] = gaussian_filter(masks[i].astype(np.float32), sigma=2)

@@ -31,17 +31,15 @@ def compute_pro(anomaly_maps, ground_truth_maps):
     num_ok_pixels = 0
     num_gt_regions = 0
 
-    shape = (len(anomaly_maps),
-             anomaly_maps[0].shape[0],
-             anomaly_maps[0].shape[1])
+    shape = (len(anomaly_maps), anomaly_maps[0].shape[0], anomaly_maps[0].shape[1])
     fp_changes = np.zeros(shape, dtype=np.uint32)
-    assert shape[0] * shape[1] * shape[2] < np.iinfo(fp_changes.dtype).max, \
+    assert shape[0] * shape[1] * shape[2] < np.iinfo(fp_changes.dtype).max, (
         "Potential overflow when using np.cumsum(), consider using np.uint64."
+    )
 
     pro_changes = np.zeros(shape, dtype=np.float64)
 
     for gt_ind, gt_map in enumerate(ground_truth_maps):
-
         # Compute the connected components in the ground truth map.
         labeled, n_components = label(gt_map, structure)
         num_gt_regions += n_components
@@ -67,7 +65,7 @@ def compute_pro(anomaly_maps, ground_truth_maps):
         for k in range(n_components):
             region_mask = labeled == (k + 1)
             region_size = np.sum(region_mask)
-            pro_change[region_mask] = 1. / region_size
+            pro_change[region_mask] = 1.0 / region_size
 
         fp_changes[gt_ind, :, :] = fp_change
         pro_changes[gt_ind, :, :] = pro_change
@@ -119,11 +117,11 @@ def compute_pro(anomaly_maps, ground_truth_maps):
 
     # To mitigate the adding up of numerical errors during the np.cumsum calls,
     # make sure that the curve ends at (1, 1) and does not contain values > 1.
-    np.clip(fprs, a_min=None, a_max=1., out=fprs)
-    np.clip(pros, a_min=None, a_max=1., out=pros)
+    np.clip(fprs, a_min=None, a_max=1.0, out=fprs)
+    np.clip(pros, a_min=None, a_max=1.0, out=pros)
 
     # Make the fprs and pros start at 0 and end at 1.
-    zero = np.array([0.])
-    one = np.array([1.])
+    zero = np.array([0.0])
+    one = np.array([1.0])
 
     return np.concatenate((zero, fprs, one)), np.concatenate((zero, pros, one))

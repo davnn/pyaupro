@@ -11,4 +11,5 @@ def get_version() -> str:
     except metadata.PackageNotFoundError:  # pragma: no cover
         return "no-version-found-in-package-metadata"
 
+
 __version__ = get_version()
