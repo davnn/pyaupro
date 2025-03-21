@@ -46,7 +46,7 @@ def auc_compute(
 
     with torch.no_grad():
         if reorder:
-            x, x_idx = torch.sort(x, stable=True, descending=descending)
+            x, x_idx = torch.sort(x, descending=descending)
             y = y[x_idx]
 
         if check and not reorder:

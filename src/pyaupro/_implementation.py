@@ -339,7 +339,7 @@ def _changepoint_mask(fpr: Tensor, pro: Tensor) -> tuple[Tensor, Tensor]:
 
 def _fast_argsort(values: Tensor) -> Tensor:
     """Sort using numpy, it seems to be much faster than pytorch here."""
-    np_idx = np.argsort(-values.ravel().numpy(force=True), stable=False)
+    np_idx = np.argsort(-values.ravel().numpy(force=True))
     return torch.from_numpy(np_idx)
 
 
