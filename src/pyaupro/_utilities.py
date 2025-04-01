@@ -83,11 +83,21 @@ def auc_compute(
                 assert (dx >= 0).all(), "The `x` tensor is not ascending."
 
         if limit != 1.0:
-            # searchsorted expects a monotonically increasing tensor
-            x_sorted = x.flip() if descending else x
-            limit_idx = torch.searchsorted(x_sorted, limit)
+            # searchsorted expects a monotonically increasing tensor, returning the first index that
+            # satisfies limit when side="left"
+            x_sorted = x.flip(dims=(0,)) if descending else x
+            limit_idx = torch.searchsorted(x_sorted, limit, side="left")
             limit_idx = len(x) - limit_idx if descending else limit_idx
-            x, y = x[:limit_idx], y[:limit_idx]
+            x = x[limit_idx:] if descending else x[:limit_idx]
+            y = y[limit_idx:] if descending else y[:limit_idx]
+
+        # ensure that the curve is always filled to the limit value, this is necessary if there are
+        # large gaps and no point lies close to the limit value, which would disturb the AUC computation
+        if x.max() < limit:
+            limit_value = y[0] if descending else y[-1]
+            xs, ys = [x, torch.tensor([limit])], [y, torch.tensor([limit_value])]
+            x = torch.cat(reversed(xs) if descending else xs)
+            y = torch.cat(reversed(ys) if descending else ys)
 
         direction = -1.0 if descending else 1.0
         auc_score = torch.trapz(y, x) * direction
