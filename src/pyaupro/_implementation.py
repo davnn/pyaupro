@@ -139,6 +139,8 @@ class PerRegionOverlap(Metric):
 
     def update(self, preds: Tensor, target: Tensor) -> None:
         """Update metric states."""
+        assert preds.shape == target.shape, "Cannot update when preds.shape != target.shape."
+
         if self.thresholds is None:
             self.preds.append(preds)
             self.target.append(target)
@@ -159,6 +161,7 @@ class PerRegionOverlap(Metric):
             # calculate the exact fpr and pro using all distinct thresholds using the logic
             # from torchmetrics ``_binary_precision_recall_curve_compute`` and ``_binary_clf_curve``
             preds, target = dim_zero_cat(self.preds), dim_zero_cat(self.target)
+            assert preds.shape == target.shape, "Cannot compute PRO when preds.shape != target.shape."
 
             if self.reference_implementation:
                 assert preds.ndim == 3, "The reference implementation is only defined for 3d-tensors."
@@ -213,7 +216,7 @@ class PerRegionOverlap(Metric):
             fpr,
             pro,
             limit=limit,
-            reorder=False,
+            reorder=True,
             descending=True,
             return_curve=True,
         )
