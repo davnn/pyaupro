@@ -96,8 +96,8 @@ def auc_compute(
         if x.max() < limit:
             limit_value = y[0] if descending else y[-1]
             xs, ys = [x, torch.tensor([limit])], [y, torch.tensor([limit_value])]
-            x = torch.cat(reversed(xs) if descending else xs)
-            y = torch.cat(reversed(ys) if descending else ys)
+            x = torch.cat(tuple(reversed(xs)) if descending else xs)
+            y = torch.cat(tuple(reversed(ys)) if descending else ys)
 
         direction = -1.0 if descending else 1.0
         auc_score = torch.trapz(y, x) * direction
