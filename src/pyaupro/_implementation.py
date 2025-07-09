@@ -244,7 +244,7 @@ def _per_region_overlap_update(
         return warn("No regions found in target for update, ignoring update.", stacklevel=2)
 
     # convert back to torch and flatten components to vector
-    flat_components = torch.from_numpy(components.ravel())
+    flat_components = torch.from_numpy(components.ravel()).to(preds.device)
 
     # only keep true components (non-zero values)
     pos_comp_mask = flat_components > 0

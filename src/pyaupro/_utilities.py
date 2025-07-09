@@ -95,7 +95,7 @@ def auc_compute(
         # large gaps and no point lies close to the limit value, which would disturb the AUC computation
         if x.max() < limit:
             limit_value = y[0] if descending else y[-1]
-            xs, ys = [x, torch.tensor([limit])], [y, torch.tensor([limit_value])]
+            xs, ys = [x, torch.tensor([limit], device=x.device)], [y, torch.tensor([limit_value], device=y.device)]
             x = torch.cat(tuple(reversed(xs)) if descending else xs)
             y = torch.cat(tuple(reversed(ys)) if descending else ys)
 
